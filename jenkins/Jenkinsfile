@@ -1,0 +1,515 @@
+pipeline {
+    agent any
+    
+    parameters {
+        booleanParam(name: 'OTEL_AUTOINSTRUMENT', defaultValue: true, description: 'Enable comprehensive OpenTelemetry auto-instrumentation')
+        booleanParam(name: 'DEPLOY_PRODUCTION', defaultValue: false, description: 'Deploy to production environment')
+        string(name: 'AWS_REGION', defaultValue: 'us-west-2', description: 'AWS Region for deployment')
+        string(name: 'ECR_REPO_API', defaultValue: '104013952213.dkr.ecr.us-west-2.amazonaws.com/cal-onboarding-api', description: 'ECR Repository for API')
+        string(name: 'ECR_REPO_LAMBDA', defaultValue: '104013952213.dkr.ecr.us-west-2.amazonaws.com/cal-onboarding-lambda', description: 'ECR Repository for Lambda')
+        string(name: 'ECR_REPO_COLLECTOR', defaultValue: '104013952213.dkr.ecr.us-west-2.amazonaws.com/cal-otel-collector', description: 'ECR Repository for Collector')
+        string(name: 'CORALOGIX_SECRET_ID', defaultValue: 'cal-coralogix-api-key', description: 'Coralogix API Key Secret ID')
+        string(name: 'ECS_CLUSTER', defaultValue: 'cal-onboarding-cluster', description: 'ECS Cluster name')
+        string(name: 'ECS_SERVICE', defaultValue: 'cal-onboarding-api', description: 'ECS Service name')
+        string(name: 'LAMBDA_FUNCTION', defaultValue: 'cal-onboarding-lambda', description: 'Lambda Function name')
+    }
+    
+    environment {
+        AWS_DEFAULT_REGION = "${params.AWS_REGION}"
+        CORALOGIX_API_KEY = credentials('cal-coralogix-api-key')
+        BUILD_TIMESTAMP = sh(script: 'date +%Y%m%d-%H%M%S', returnStdout: true).trim()
+        IMAGE_TAG = "${params.DEPLOY_PRODUCTION ? 'production' : 'staging'}-${BUILD_TIMESTAMP}"
+    }
+    
+    stages {
+        stage('Pre-build Validation') {
+            steps {
+                script {
+                    echo "🔍 Validating build environment..."
+                    
+                    // Validate required tools
+                    sh '''
+                        echo "Checking required tools..."
+                        docker --version
+                        aws --version
+                        
+                        echo "Validating AWS credentials..."
+                        aws sts get-caller-identity
+                        
+                        echo "Checking ECR repositories..."
+                        aws ecr describe-repositories --repository-names cal-onboarding-api cal-onboarding-lambda cal-otel-collector --region ${AWS_REGION} || {
+                            echo "Creating missing ECR repositories..."
+                            aws ecr create-repository --repository-name cal-onboarding-api --region ${AWS_REGION} || true
+                            aws ecr create-repository --repository-name cal-onboarding-lambda --region ${AWS_REGION} || true  
+                            aws ecr create-repository --repository-name cal-otel-collector --region ${AWS_REGION} || true
+                        }
+                        
+                        echo "Validating Coralogix secret..."
+                        aws secretsmanager get-secret-value --secret-id ${CORALOGIX_SECRET_ID} --region ${AWS_REGION} --query SecretString --output text > /dev/null
+                    '''
+                    
+                    if (params.OTEL_AUTOINSTRUMENT) {
+                        echo "✅ OpenTelemetry auto-instrumentation ENABLED"
+                        echo "   - Comprehensive distributed tracing"
+                        echo "   - Business metrics and custom spans"
+                        echo "   - Structured logging with trace correlation"
+                    } else {
+                        echo "⚠️  OpenTelemetry auto-instrumentation DISABLED"
+                    }
+                }
+            }
+        }
+        
+        stage('Build Enhanced API Image') {
+            steps {
+                script {
+                    echo "🏗️  Building enhanced onboarding API image..."
+                    
+                    sh """
+                        cd customer-onboarding-demo
+                        
+                        # Build enhanced API image with comprehensive instrumentation
+                        docker build --platform linux/amd64 \\
+                            --build-arg OTEL_ENABLED=${params.OTEL_AUTOINSTRUMENT} \\
+                            --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} \\
+                            --build-arg ENVIRONMENT=${params.DEPLOY_PRODUCTION ? 'production' : 'staging'} \\
+                            -t ${params.ECR_REPO_API}:${IMAGE_TAG} \\
+                            -t ${params.ECR_REPO_API}:latest \\
+                            -f onboarding-api/Dockerfile .
+                        
+                        echo "✅ Enhanced API image built successfully"
+                        docker images | grep cal-onboarding-api
+                    """
+                }
+            }
+        }
+        
+        stage('Build Enhanced Lambda Image') {
+            steps {
+                script {
+                    echo "🏗️  Building enhanced Lambda container image..."
+                    
+                    sh """
+                        cd customer-onboarding-demo
+                        
+                        # Build Lambda image with embedded OpenTelemetry instrumentation
+                        docker build --platform linux/amd64 \\
+                            --build-arg OTEL_ENABLED=${params.OTEL_AUTOINSTRUMENT} \\
+                            --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} \\
+                            --build-arg ENVIRONMENT=${params.DEPLOY_PRODUCTION ? 'production' : 'staging'} \\
+                            -t ${params.ECR_REPO_LAMBDA}:${IMAGE_TAG} \\
+                            -t ${params.ECR_REPO_LAMBDA}:latest \\
+                            -f onboarding-lambda/Dockerfile .
+                        
+                        echo "✅ Enhanced Lambda image built successfully"
+                        docker images | grep cal-onboarding-lambda
+                    """
+                }
+            }
+        }
+        
+        stage('Build Production Collector') {
+            when {
+                expression { params.OTEL_AUTOINSTRUMENT }
+            }
+            steps {
+                script {
+                    echo "🏗️  Building production OpenTelemetry Collector..."
+                    
+                    sh """
+                        cd customer-onboarding-demo
+                        
+                        # Build collector with production configuration
+                        docker build --platform linux/amd64 \\
+                            --build-arg CONFIG_FILE=production-collector.yaml \\
+                            --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} \\
+                            -t ${params.ECR_REPO_COLLECTOR}:${IMAGE_TAG} \\
+                            -t ${params.ECR_REPO_COLLECTOR}:latest \\
+                            -f otel/Dockerfile .
+                        
+                        echo "✅ Production collector built successfully"
+                        docker images | grep cal-otel-collector
+                    """
+                }
+            }
+        }
+        
+        stage('Security Scanning') {
+            parallel {
+                stage('Scan API Image') {
+                    steps {
+                        script {
+                            echo "🔒 Scanning API image for vulnerabilities..."
+                            sh """
+                                # Basic security scan (replace with your preferred scanner)
+                                docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \\
+                                    aquasec/trivy:latest image --exit-code 0 --severity HIGH,CRITICAL \\
+                                    ${params.ECR_REPO_API}:${IMAGE_TAG} || {
+                                    echo "⚠️  Security vulnerabilities found in API image"
+                                }
+                            """
+                        }
+                    }
+                }
+                stage('Scan Lambda Image') {
+                    steps {
+                        script {
+                            echo "🔒 Scanning Lambda image for vulnerabilities..."
+                            sh """
+                                docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \\
+                                    aquasec/trivy:latest image --exit-code 0 --severity HIGH,CRITICAL \\
+                                    ${params.ECR_REPO_LAMBDA}:${IMAGE_TAG} || {
+                                    echo "⚠️  Security vulnerabilities found in Lambda image"
+                                }
+                            """
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Push Images to ECR') {
+            steps {
+                script {
+                    echo "🚀 Pushing images to ECR..."
+                    
+                    sh """
+                        # Login to ECR
+                        aws ecr get-login-password --region ${params.AWS_REGION} | \\
+                            docker login --username AWS --password-stdin ${params.ECR_REPO_API.split('/')[0]}
+                        
+                        # Push API image
+                        echo "Pushing API image..."
+                        docker push ${params.ECR_REPO_API}:${IMAGE_TAG}
+                        docker push ${params.ECR_REPO_API}:latest
+                        
+                        # Push Lambda image  
+                        echo "Pushing Lambda image..."
+                        docker push ${params.ECR_REPO_LAMBDA}:${IMAGE_TAG}
+                        docker push ${params.ECR_REPO_LAMBDA}:latest
+                        
+                        # Push Collector image (if built)
+                        if docker images | grep -q cal-otel-collector; then
+                            echo "Pushing Collector image..."
+                            docker push ${params.ECR_REPO_COLLECTOR}:${IMAGE_TAG}
+                            docker push ${params.ECR_REPO_COLLECTOR}:latest
+                        fi
+                        
+                        echo "✅ All images pushed successfully"
+                    """
+                }
+            }
+        }
+        
+        stage('Deploy ECS Service') {
+            steps {
+                script {
+                    echo "🚀 Deploying enhanced ECS service..."
+                    
+                    sh """
+                        cd customer-onboarding-demo
+                        
+                        # Update task definition with new image
+                        sed -i 's|"image": ".*cal-onboarding-api.*"|"image": "${params.ECR_REPO_API}:${IMAGE_TAG}"|g' ecs/taskdef.fargate.json
+                        sed -i 's|"image": ".*cal-otel-collector.*"|"image": "${params.ECR_REPO_COLLECTOR}:${IMAGE_TAG}"|g' ecs/taskdef.fargate.json
+                        
+                        # Add build metadata to task definition
+                        jq '.containerDefinitions[0].environment += [
+                            {"name": "BUILD_TIMESTAMP", "value": "${BUILD_TIMESTAMP}"},
+                            {"name": "IMAGE_TAG", "value": "${IMAGE_TAG}"},
+                            {"name": "DEPLOYMENT_ENVIRONMENT", "value": "${params.DEPLOY_PRODUCTION ? 'production' : 'staging'}"}
+                        ]' ecs/taskdef.fargate.json > ecs/taskdef-updated.json
+                        
+                        # Register new task definition
+                        aws ecs register-task-definition \\
+                            --cli-input-json file://ecs/taskdef-updated.json \\
+                            --region ${params.AWS_REGION}
+                        
+                        # Update service with new task definition
+                        TASK_DEFINITION_ARN=\$(aws ecs describe-task-definition \\
+                            --task-definition cal-onboarding-api-demo \\
+                            --region ${params.AWS_REGION} \\
+                            --query 'taskDefinition.taskDefinitionArn' --output text)
+                        
+                        aws ecs update-service \\
+                            --cluster ${params.ECS_CLUSTER} \\
+                            --service ${params.ECS_SERVICE} \\
+                            --task-definition \$TASK_DEFINITION_ARN \\
+                            --region ${params.AWS_REGION}
+                        
+                        echo "✅ ECS service deployment initiated"
+                        
+                        # Wait for deployment to complete
+                        echo "⏳ Waiting for service deployment to stabilize..."
+                        aws ecs wait services-stable \\
+                            --cluster ${params.ECS_CLUSTER} \\
+                            --services ${params.ECS_SERVICE} \\
+                            --region ${params.AWS_REGION}
+                        
+                        echo "✅ ECS service deployment completed"
+                    """
+                }
+            }
+        }
+        
+        stage('Deploy Lambda Function') {
+            steps {
+                script {
+                    echo "🚀 Deploying enhanced Lambda function..."
+                    
+                    sh """
+                        # Update Lambda function code
+                        aws lambda update-function-code \\
+                            --function-name ${params.LAMBDA_FUNCTION} \\
+                            --image-uri ${params.ECR_REPO_LAMBDA}:${IMAGE_TAG} \\
+                            --region ${params.AWS_REGION}
+                        
+                        # Get Coralogix configuration from secrets
+                        CORALOGIX_PRIVATE_KEY=\$(aws secretsmanager get-secret-value \\
+                            --secret-id ${params.CORALOGIX_SECRET_ID} \\
+                            --query SecretString --output text \\
+                            --region ${params.AWS_REGION})
+                        
+                        # Update Lambda environment variables with enhanced configuration
+                        aws lambda update-function-configuration \\
+                            --function-name ${params.LAMBDA_FUNCTION} \\
+                            --environment "Variables={
+                                CORALOGIX_DOMAIN=us2.coralogix.com,
+                                CORALOGIX_PRIVATE_KEY=\$CORALOGIX_PRIVATE_KEY,
+                                OTEL_SERVICE_NAME=onboarding-lambda,
+                                OTEL_RESOURCE_ATTRIBUTES=service.namespace=customer-onboarding,service.name=onboarding-lambda,service.version=2.0.0,deployment.environment=${params.DEPLOY_PRODUCTION ? 'production' : 'staging'},build.timestamp=${BUILD_TIMESTAMP},
+                                ENVIRONMENT=${params.DEPLOY_PRODUCTION ? 'production' : 'staging'},
+                                BUILD_TIMESTAMP=${BUILD_TIMESTAMP},
+                                IMAGE_TAG=${IMAGE_TAG}
+                            }" \\
+                            --region ${params.AWS_REGION}
+                        
+                        # Wait for function update to complete
+                        echo "⏳ Waiting for Lambda function update to complete..."
+                        aws lambda wait function-updated \\
+                            --function-name ${params.LAMBDA_FUNCTION} \\
+                            --region ${params.AWS_REGION}
+                        
+                        echo "✅ Lambda function deployment completed"
+                    """
+                }
+            }
+        }
+        
+        stage('Post-Deployment Validation') {
+            steps {
+                script {
+                    echo "🧪 Running post-deployment validation..."
+                    
+                    sh """
+                        # Get ECS service endpoint
+                        TASK_ARN=\$(aws ecs list-tasks \\
+                            --cluster ${params.ECS_CLUSTER} \\
+                            --service-name ${params.ECS_SERVICE} \\
+                            --region ${params.AWS_REGION} \\
+                            --query 'taskArns[0]' --output text)
+                        
+                        if [ "\$TASK_ARN" != "None" ] && [ "\$TASK_ARN" != "" ]; then
+                            TASK_DETAILS=\$(aws ecs describe-tasks \\
+                                --cluster ${params.ECS_CLUSTER} \\
+                                --tasks \$TASK_ARN \\
+                                --region ${params.AWS_REGION})
+                            
+                            PUBLIC_IP=\$(echo \$TASK_DETAILS | jq -r '.tasks[0].attachments[0].details[] | select(.name=="networkInterfaceId") | .value' | xargs -I {} aws ec2 describe-network-interfaces --network-interface-ids {} --region ${params.AWS_REGION} --query 'NetworkInterfaces[0].Association.PublicIp' --output text)
+                            
+                            if [ "\$PUBLIC_IP" != "None" ] && [ "\$PUBLIC_IP" != "" ]; then
+                                echo "🌐 API Endpoint: http://\$PUBLIC_IP:8000"
+                                
+                                # Test health endpoint
+                                echo "Testing health endpoint..."
+                                curl -f "http://\$PUBLIC_IP:8000/health" || {
+                                    echo "⚠️  Health check failed"
+                                    exit 1
+                                }
+                                
+                                # Test onboarding endpoint
+                                echo "Testing enhanced onboarding endpoint..."
+                                curl -f -X POST "http://\$PUBLIC_IP:8000/onboard" \\
+                                    -H "Content-Type: application/json" \\
+                                    -d '{
+                                        "customer_id": "test-jenkins-'${BUILD_TIMESTAMP}'",
+                                        "email": "jenkins.test@example.com",
+                                        "type": "premium",
+                                        "company_name": "Jenkins Test Corp"
+                                    }' || {
+                                    echo "⚠️  Onboarding test failed"
+                                    exit 1
+                                }
+                                
+                                echo "✅ API validation successful"
+                            else
+                                echo "⚠️  Could not determine public IP for validation"
+                            fi
+                        else
+                            echo "⚠️  No running tasks found for validation"
+                        fi
+                        
+                        # Test Lambda function
+                        echo "Testing enhanced Lambda function..."
+                        aws lambda invoke \\
+                            --function-name ${params.LAMBDA_FUNCTION} \\
+                            --payload '{
+                                "event_type": "jenkins_validation_test",
+                                "request_id": "jenkins-'${BUILD_TIMESTAMP}'",
+                                "customer_record": {
+                                    "customer_id": "test-lambda-'${BUILD_TIMESTAMP}'",
+                                    "email": "lambda.test@example.com",
+                                    "type": "enterprise",
+                                    "company_name": "Lambda Test Enterprise"
+                                },
+                                "processing_context": {
+                                    "source": "jenkins-pipeline",
+                                    "priority": "high"
+                                }
+                            }' \\
+                            --region ${params.AWS_REGION} \\
+                            /tmp/lambda-response.json
+                        
+                        LAMBDA_STATUS=\$(cat /tmp/lambda-response.json | jq -r '.StatusCode // "unknown"')
+                        if [ "\$LAMBDA_STATUS" = "200" ]; then
+                            echo "✅ Lambda validation successful"
+                        else
+                            echo "⚠️  Lambda validation failed with status: \$LAMBDA_STATUS"
+                            cat /tmp/lambda-response.json
+                        fi
+                    """
+                }
+            }
+        }
+        
+        stage('Generate Telemetry Test Data') {
+            when {
+                expression { params.OTEL_AUTOINSTRUMENT }
+            }
+            steps {
+                script {
+                    echo "📊 Generating telemetry test data for Coralogix validation..."
+                    
+                    sh """
+                        cd customer-onboarding-demo
+                        
+                        # Install test dependencies
+                        pip3 install aiohttp asyncio || true
+                        
+                        # Get API endpoint
+                        TASK_ARN=\$(aws ecs list-tasks \\
+                            --cluster ${params.ECS_CLUSTER} \\
+                            --service-name ${params.ECS_SERVICE} \\
+                            --region ${params.AWS_REGION} \\
+                            --query 'taskArns[0]' --output text)
+                        
+                        if [ "\$TASK_ARN" != "None" ] && [ "\$TASK_ARN" != "" ]; then
+                            TASK_DETAILS=\$(aws ecs describe-tasks \\
+                                --cluster ${params.ECS_CLUSTER} \\
+                                --tasks \$TASK_ARN \\
+                                --region ${params.AWS_REGION})
+                            
+                            PUBLIC_IP=\$(echo \$TASK_DETAILS | jq -r '.tasks[0].attachments[0].details[] | select(.name=="networkInterfaceId") | .value' | xargs -I {} aws ec2 describe-network-interfaces --network-interface-ids {} --region ${params.AWS_REGION} --query 'NetworkInterfaces[0].Association.PublicIp' --output text)
+                            
+                            if [ "\$PUBLIC_IP" != "None" ] && [ "\$PUBLIC_IP" != "" ]; then
+                                echo "🎯 Running telemetry validation test suite..."
+                                
+                                # Run test suite to generate comprehensive telemetry data
+                                timeout 300 python3 test-enhanced-onboarding.py \\
+                                    --api-url "http://\$PUBLIC_IP:8000" \\
+                                    --test-type demo \\
+                                    --output /tmp/telemetry-test-results.json || true
+                                
+                                echo "📈 Telemetry test data generated"
+                                echo "🔍 Check Coralogix for:"
+                                echo "   • Distributed traces across ECS → Lambda → AWS services"
+                                echo "   • Business metrics and custom spans"
+                                echo "   • Structured logs with trace correlation"
+                                echo "   • Service maps and APM dashboards"
+                            fi
+                        fi
+                    """
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            script {
+                echo "🧹 Cleaning up build artifacts..."
+                sh '''
+                    # Clean up Docker images to save space
+                    docker image prune -f
+                    
+                    # Archive test results if they exist
+                    if [ -f /tmp/telemetry-test-results.json ]; then
+                        cp /tmp/telemetry-test-results.json ${WORKSPACE}/telemetry-test-results.json
+                    fi
+                '''
+            }
+            
+            // Archive artifacts
+            archiveArtifacts artifacts: '**/*test-results.json', allowEmptyArchive: true
+        }
+        
+        success {
+            script {
+                def environment = params.DEPLOY_PRODUCTION ? 'PRODUCTION' : 'STAGING'
+                def instrumentationStatus = params.OTEL_AUTOINSTRUMENT ? 'ENABLED' : 'DISABLED'
+                
+                echo """
+                🎉 ENHANCED CUSTOMER ONBOARDING DEPLOYMENT SUCCESSFUL!
+                
+                📋 Deployment Summary:
+                   Environment: ${environment}
+                   Build Timestamp: ${BUILD_TIMESTAMP}
+                   Image Tag: ${IMAGE_TAG}
+                   OpenTelemetry: ${instrumentationStatus}
+                   AWS Region: ${params.AWS_REGION}
+                
+                🚀 Deployed Services:
+                   • ECS Service: ${params.ECS_SERVICE} (${params.ECS_CLUSTER})
+                   • Lambda Function: ${params.LAMBDA_FUNCTION}
+                   • OpenTelemetry Collector: Production-ready sidecar
+                
+                📊 Observability Features:
+                   • Distributed tracing across all services
+                   • Business metrics and KPIs
+                   • Structured logging with trace correlation
+                   • Service maps and dependency visualization
+                   • Real-time alerting and monitoring
+                
+                🔍 Next Steps:
+                   1. Check Coralogix dashboards for telemetry data
+                   2. Validate service maps and traces
+                   3. Configure business alerts and dashboards
+                   4. Run load tests to generate realistic data
+                
+                🎯 Demo Ready: Your enhanced customer onboarding service is ready to demonstrate comprehensive observability patterns!
+                """
+            }
+        }
+        
+        failure {
+            script {
+                echo """
+                ❌ DEPLOYMENT FAILED
+                
+                🔍 Troubleshooting Steps:
+                   1. Check build logs for specific error details
+                   2. Validate AWS credentials and permissions
+                   3. Verify ECR repository access
+                   4. Check ECS cluster and Lambda function configuration
+                   5. Validate Coralogix secret and connectivity
+                
+                📞 Support Resources:
+                   • AWS ECS Documentation
+                   • AWS Lambda Container Images
+                   • OpenTelemetry Configuration Guide
+                   • Coralogix Integration Documentation
+                """
+            }
+        }
+    }
+}

@@ -1,0 +1,76 @@
+# Production-ready OpenTelemetry Collector configuration for ECS Fargate sidecar
+# Demonstrates best practices for Coralogix integration
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317   # Must bind to all interfaces for ECS sidecar
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch: {}
+  
+  # Add consistent resource attributes
+  resource:
+    attributes:
+      - key: service.namespace
+        action: insert
+        value: onboarding
+      - key: deployment.environment  
+        action: insert
+        value: production
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+exporters:
+  # Coralogix exporter with production configuration
+  coralogix:
+    domain: "${CORALOGIX_DOMAIN}"
+    private_key: "${CORALOGIX_PRIVATE_KEY}"
+    
+    # Map to Coralogix application structure
+    application_name: "customer-onboarding"
+    application_name_attributes: ["service.namespace"]
+    subsystem_name_attributes: ["service.name"]
+    
+    # Optimize for production
+    timeout: 30s
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+  
+  # Temporary logging exporter to prove spans are received
+  logging:
+    verbosity: detailed
+
+service:
+  extensions: [health_check]
+  
+  telemetry:
+    logs:
+      level: "debug"
+      
+  pipelines:
+    # Traces pipeline
+    traces:
+      receivers: [otlp]
+      processors: [batch, resource]
+      exporters: [coralogix, logging]
+      
+    # Metrics pipeline
+    metrics:
+      receivers: [otlp]
+      processors: [batch, resource]
+      exporters: [coralogix, logging]
+      
+    # Logs pipeline
+    logs:
+      receivers: [otlp]
+      processors: [batch, resource]
+      exporters: [coralogix, logging]

@@ -1,0 +1,83 @@
+# Production-ready OpenTelemetry Collector configuration for ECS Fargate sidecar
+# Demonstrates best practices for Coralogix integration
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317   # Must bind to all interfaces for ECS sidecar
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch: {}
+  
+  # Add consistent resource attributes
+  resource:
+    attributes:
+      - key: service.namespace
+        action: insert
+        value: onboarding
+      - key: deployment.environment  
+        action: insert
+        value: production
+        
+  # Generate span metrics for APM (required for service maps)
+  spanmetrics:
+    metrics_exporter: coralogix
+    latency_histogram_buckets: [2ms, 4ms, 6ms, 8ms, 10ms, 50ms, 100ms, 200ms, 400ms, 800ms, 1s, 1400ms, 2s, 5s, 10s, 15s]
+    dimensions:
+      - name: http.method
+        default: GET
+      - name: http.status_code
+      - name: service.version
+    dimensions_cache_size: 10000
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+exporters:
+  # Coralogix exporter with production configuration
+  coralogix:
+    domain: "us2.coralogix.com"
+    private_key: "${CORALOGIX_PRIVATE_KEY}"
+    
+    # Map to Coralogix application structure
+    application_name: "customer-onboarding"
+    application_name_attributes: ["service.namespace"]
+    subsystem_name_attributes: ["service.name"]
+    
+    # Optimize for production
+    timeout: 30s
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+
+service:
+  extensions: [health_check]
+  
+  telemetry:
+    logs:
+      level: "info"
+      
+  pipelines:
+    # Traces pipeline with span metrics generation
+    traces:
+      receivers: [otlp]
+      processors: [batch, resource, spanmetrics]
+      exporters: [coralogix]
+      
+    # Metrics pipeline (includes span metrics)
+    metrics:
+      receivers: [otlp]
+      processors: [batch, resource]
+      exporters: [coralogix]
+      
+    # Logs pipeline
+    logs:
+      receivers: [otlp]
+      processors: [batch, resource]
+      exporters: [coralogix]
