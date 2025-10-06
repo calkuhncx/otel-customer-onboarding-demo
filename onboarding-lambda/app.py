@@ -99,8 +99,8 @@ def _extract_parent(rec: Dict[str, Any]):
     return None
 
 # --- Handler ---
-def handler(event, context):
-    """AWS Lambda handler with proper FaaS span structure"""
+def handler(event, _ctx):
+    """AWS Lambda handler - simple working version"""
     print(f"🔵 Handler invoked with {len(event.get('Records', []))} records")
     log.info("🔵 Handler invoked with %d records", len(event.get('Records', [])))
     
@@ -111,58 +111,45 @@ def handler(event, context):
         log.warning("⚠️ OTel not initialized, processing without tracing")
         return {"status": "ok", "count": len(records), "otel": "disabled"}
 
-    # Create root Lambda invocation span (required for Serverless Catalog)
+    # Batch receive span (optional for analytics)
     with tracer.start_as_current_span(
-        "aws.lambda",
-        kind=trace.SpanKind.SERVER,
+        "sqs.receive",
+        kind=trace.SpanKind.CONSUMER,
         attributes={
-            "faas.execution": context.aws_request_id if context else "local",
+            "messaging.system": "aws.sqs",
+            "messaging.destination.kind": "queue",
+            "messaging.destination.name": "cal-onboarding-queue",
             "faas.trigger": "pubsub",
-            "faas.invoked_name": os.getenv("AWS_LAMBDA_FUNCTION_NAME", "cal-onboarding-lambda-arm64"),
-            "faas.invoked_region": os.getenv("AWS_REGION", "us-west-2"),
-            "cloud.resource_id": context.invoked_function_arn if context else "local",
         },
-    ) as lambda_span:
-        # Process SQS batch
-        with tracer.start_as_current_span(
-            "sqs.receive",
-            kind=trace.SpanKind.CONSUMER,
-            attributes={
-                "messaging.system": "aws.sqs",
-                "messaging.destination.kind": "queue",
-                "messaging.destination.name": "cal-onboarding-queue",
-                "messaging.operation": "receive",
-                "messaging.batch.message_count": len(records),
-            },
-        ):
-            for rec in records:
-                parent_ctx = _extract_parent(rec)
-                
-                print(f"📨 Processing message {rec.get('messageId')}")
-                log.info("📨 Processing message %s", rec.get('messageId'))
+    ):
+        for rec in records:
+            parent_ctx = _extract_parent(rec)
+            
+            print(f"📨 Processing message {rec.get('messageId')}")
+            log.info("📨 Processing message %s", rec.get('messageId'))
 
-                # Each record is a CONSUMER child of producer
-                with tracer.start_as_current_span(
-                    "sqs.process",
-                    context=parent_ctx,
-                    kind=trace.SpanKind.CONSUMER,
-                    attributes={
-                        "messaging.system": "aws.sqs",
-                        "messaging.destination.kind": "queue",
-                        "messaging.destination.name": "cal-onboarding-queue",
-                        "messaging.operation": "process",
-                        "messaging.message.id": rec.get("messageId"),
-                    },
-                ):
-                    body = rec.get("body") or "{}"
-                    payload = json.loads(body)
-                    print(f"✅ Processed customer_id={payload.get('customer_id')}")
-                    log.info("✅ Processed customer_id=%s", payload.get('customer_id'))
+            # Each record is a CONSUMER child of producer
+            with tracer.start_as_current_span(
+                "sqs.process",
+                context=parent_ctx,
+                kind=trace.SpanKind.CONSUMER,
+                attributes={
+                    "messaging.system": "aws.sqs",
+                    "messaging.destination.kind": "queue",
+                    "messaging.destination.name": "cal-onboarding-queue",
+                    "messaging.operation": "process",
+                    "messaging.message.id": rec.get("messageId"),
+                },
+            ):
+                body = rec.get("body") or "{}"
+                payload = json.loads(body)
+                print(f"✅ Processed customer_id={payload.get('customer_id')}")
+                log.info("✅ Processed customer_id=%s", payload.get('customer_id'))
 
-        print("🔄 Flushing spans...")
-        log.info("🔄 Flushing spans...")
-        processor.force_flush()
-        print("✅ Flush complete")
-        log.info("✅ Flush complete")
+    print("🔄 Flushing spans...")
+    log.info("🔄 Flushing spans...")
+    processor.force_flush()
+    print("✅ Flush complete")
+    log.info("✅ Flush complete")
     
     return {"status": "ok", "count": len(records)}
