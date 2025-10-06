@@ -100,7 +100,6 @@ def _extract_parent(rec: Dict[str, Any]):
 
 # --- Handler ---
 def handler(event, _ctx):
-    """AWS Lambda handler - simple working version"""
     print(f"🔵 Handler invoked with {len(event.get('Records', []))} records")
     log.info("🔵 Handler invoked with %d records", len(event.get('Records', [])))
     
