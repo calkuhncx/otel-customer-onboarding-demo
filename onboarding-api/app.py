@@ -251,25 +251,8 @@ def queue_for_processing(customer_record, request_id, span):
         queue_span.set_attribute("aws.sqs.queue_url", SQS_QUEUE_URL)
         
         try:
-            # Inject current context (W3C) immediately before send_message
             from opentelemetry import propagate
             from opentelemetry.trace import SpanKind
-            carrier = {}
-            propagate.inject(carrier)  # {'traceparent': '00-...-...-01', 'tracestate': '...', 'baggage': '...'}
-            
-            # Log the outgoing trace context for verification
-            cur = trace.get_current_span().get_span_context().trace_id
-            log.info("[ECS] trace_id=%032x traceparent=%s", cur, carrier.get("traceparent"))
-
-            # Map to SQS MessageAttributes (Strings) - keep keys lowercase
-            msg_attrs = {
-                k: {"DataType": "String", "StringValue": v}
-                for k, v in carrier.items()
-                if k in ("traceparent", "tracestate", "baggage") and isinstance(v, str)
-            }
-            # Rich business attributes (helps investigation/alerts)
-            if "customer_id" in customer_record:
-                msg_attrs["customer.id"] = {"DataType": "String", "StringValue": customer_record["customer_id"]}
             
             # Create message body
             message_body = {
@@ -280,13 +263,32 @@ def queue_for_processing(customer_record, request_id, span):
                 "customer_data": customer_record
             }
             
-            # PRODUCER span - this creates the parent for Lambda consumer
+            # PRODUCER span - inject INSIDE this span so traceparent references it
             with tracer.start_as_current_span("sqs.send", kind=SpanKind.PRODUCER) as producer_span:
                 producer_span.set_attribute("messaging.system", "aws.sqs")
-                producer_span.set_attribute("messaging.destination", SQS_QUEUE_URL.rsplit("/", 1)[-1])
-                producer_span.set_attribute("customer.id", customer_record.get("customer_id", ""))
+                producer_span.set_attribute("messaging.destination.kind", "queue")
+                producer_span.set_attribute("messaging.destination.name", "cal-onboarding-queue")
                 producer_span.set_attribute("messaging.operation", "send")
+                producer_span.set_attribute("customer.id", customer_record.get("customer_id", ""))
                 producer_span.set_attribute("business.request_id", request_id)
+                
+                # Inject W3C context INSIDE the PRODUCER span
+                carrier = {}
+                propagate.inject(carrier)  # carrier now holds traceparent for THIS PRODUCER span
+                
+                # Log the outgoing trace context for verification
+                tid = trace.get_current_span().get_span_context().trace_id
+                log.info("[ECS] PRODUCER trace_id=%032x traceparent=%s", tid, carrier.get("traceparent"))
+                
+                # Map to SQS MessageAttributes (lowercase keys)
+                msg_attrs = {
+                    k: {"DataType": "String", "StringValue": v}
+                    for k, v in carrier.items()
+                    if k in ("traceparent", "tracestate", "baggage") and isinstance(v, str)
+                }
+                # Rich business attributes
+                if "customer_id" in customer_record:
+                    msg_attrs["customer.id"] = {"DataType": "String", "StringValue": customer_record["customer_id"]}
                 
                 # Send with the W3C attributes
                 response = sqs.send_message(
@@ -319,8 +321,9 @@ def queue_for_processing(customer_record, request_id, span):
             log.error("Failed to queue customer for processing", extra={
                 "request_id": request_id,
                 "customer_id": customer_record["customer_id"],
-                "error": str(e)
-            })
+                "error": str(e),
+                "error_type": type(e).__name__
+            }, exc_info=True)
             return False
 
 def send_welcome_notification(customer_record, request_id, span):
@@ -553,6 +556,38 @@ def onboard():
                 "error": "Internal server error",
                 "processing_time_ms": round(duration * 1000, 2)
             }), 500
+
+@app.route("/telemetry/smoke", methods=["POST"])
+def telemetry_smoke():
+    """Minimal smoke test endpoint for ECS → SQS → Lambda trace verification"""
+    request_id = str(uuid.uuid4())
+    payload = request.get_json(silent=True) or {}
+    customer_id = payload.get("customer_id", f"SMOKE-{request_id[:8]}")
+    
+    with tracer.start_as_current_span("smoke_root") as span:
+        span.set_attribute("http.route", "/telemetry/smoke")
+        span.set_attribute("http.method", "POST")
+        span.set_attribute("customer.id", customer_id)
+        span.set_attribute("business.request_id", request_id)
+        
+        # Minimal record to reuse existing queue_for_processing()
+        record = {"customer_id": customer_id}
+        ok = queue_for_processing(record, request_id, span)
+        
+        status_code = 200 if ok else 500
+        result = {
+            "status": "queued" if ok else "failed",
+            "customer_id": customer_id,
+            "request_id": request_id
+        }
+        
+        log.info("[SMOKE] Telemetry smoke test completed", extra={
+            "request_id": request_id,
+            "customer_id": customer_id,
+            "queued": ok
+        })
+        
+        return jsonify(result), status_code
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000, debug=False)

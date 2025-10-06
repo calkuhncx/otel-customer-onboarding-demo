@@ -1,0 +1,51 @@
+# Coralogix OpenTelemetry Collector - Full APM with Span Metrics
+# Enables APM Services Dashboard with RED metrics (Rate, Error, Duration)
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+processors:
+  batch: {}
+
+connectors:
+  spanmetrics:
+    # Generate RED metrics from spans for APM dashboard
+    histogram:
+      explicit:
+        buckets: [2ms, 4ms, 6ms, 8ms, 10ms, 50ms, 100ms, 200ms, 400ms, 800ms, 1s, 1400ms, 2s, 5s, 10s, 15s]
+    dimensions:
+      - name: http.method
+        default: GET
+      - name: http.status_code
+    # Emit metrics for Coralogix APM
+    metrics_flush_interval: 15s
+
+exporters:
+  otlp/traces:
+    endpoint: ${CORALOGIX_ENDPOINT}
+    tls:
+      insecure: false
+    headers:
+      ${CORALOGIX_AUTH}
+  
+  otlp/metrics:
+    endpoint: ${CORALOGIX_ENDPOINT}
+    tls:
+      insecure: false
+    headers:
+      ${CORALOGIX_AUTH}
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [spanmetrics, otlp/traces]
+    
+    metrics:
+      receivers: [spanmetrics]
+      processors: [batch]
+      exporters: [otlp/metrics]

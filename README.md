@@ -1,398 +1,389 @@
-# Enhanced Customer Onboarding Service - OpenTelemetry Demo
-
-A comprehensive, production-ready demonstration of OpenTelemetry instrumentation for ECS Fargate + Lambda containerized applications, designed to showcase best practices for Coralogix integration and customer onboarding workflows.
-
-## 🎯 Overview
-
-This enhanced demo replicates a realistic customer onboarding service architecture, demonstrating:
-
-- **Comprehensive Distributed Tracing**: End-to-end visibility across ECS Fargate → Lambda → AWS Services
-- **Business Metrics & KPIs**: Custom metrics for onboarding success rates, processing times, and business insights
-- **Structured Logging**: Correlated logs with trace context for debugging and analysis
-- **Service Maps**: Visual representation of service dependencies and health
-- **Production-Ready Observability**: Realistic error rates, retry logic, and failure scenarios
-
-## 🏗️ Enhanced Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                           Enhanced Customer Onboarding Service                  │
-└─────────────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────┐    ┌─────────────────────┐    ┌─────────────────────┐
-│   ECS Fargate       │    │   AWS Lambda        │    │   AWS Services      │
-│                     │    │                     │    │                     │
-│  ┌─────────────────┐│    │  ┌─────────────────┐│    │  ┌─────────────────┐│
-│  │ Enhanced API    ││───▶│  │ Enhanced        ││───▶│  │ DynamoDB        ││
-│  │ • Validation    ││    │  │ Processing      ││    │  │ • Customers     ││
-│  │ • Enrichment    ││    │  │ • Compliance    ││    │  │ • Audit Trail   ││
-│  │ • Orchestration ││    │  │ • Audit Trails  ││    │  │                 ││
-│  │ • Business Logic││    │  │ • Data Storage  ││    │  │ S3              ││
-│  └─────────────────┘│    │  │ • Notifications ││    │  │ • Documents     ││
-│                     │    │  │ • Workflows     ││    │  │ • Data Lake     ││
-│  ┌─────────────────┐│    │  └─────────────────┘│    │  │                 ││
-│  │ OTel Collector  ││    │                     │    │  │ SES / SNS       ││
-│  │ (Sidecar)       ││    │  ┌─────────────────┐│    │  │ • Notifications ││
-│  │ • Span Metrics  ││    │  │ Coralogix       ││    │  │                 ││
-│  │ • Batch Export  ││    │  │ Extension       ││    │  │ SSM             ││
-│  └─────────────────┘│    │  └─────────────────┘│    │  │ • Configuration ││
-└─────────────────────┘    └─────────────────────┘    │  └─────────────────┘│
-         │                           │                │                     │
-         └───────────────────────────┼────────────────│  ┌─────────────────┐│
-                                     │                │  │ SQS             ││
-                        ┌─────────────────────┐       │  │ • Workflows     ││
-                        │   Coralogix         │       │  └─────────────────┘│
-                        │   (US2)             │       └─────────────────────┘
-                        │                     │
-                        │  📊 Dashboards      │
-                        │  🔍 Service Maps    │
-                        │  📈 Metrics         │
-                        │  📋 Traces          │
-                        │  📝 Logs            │
-                        │  🚨 Alerts          │
-                        └─────────────────────┘
-```
-
-## ✨ Enhanced Features
-
-### 🎯 Realistic Business Workflows
-
-- **Multi-step Customer Validation**: Email validation, data enrichment, risk scoring
-- **Compliance & Security Checks**: KYC, AML screening, sanctions checks, PEP screening
-- **Audit Trail Creation**: Comprehensive audit logging for compliance
-- **Data Storage & Management**: Customer documents, metadata, and data lake integration
-- **Notification Systems**: Welcome emails, internal team notifications
-- **Follow-up Workflows**: Customer success, compliance monitoring, education campaigns
-
-### 📊 Advanced Observability
-
-- **Custom Business Metrics**:
-  - Onboarding success rates by customer type
-  - Processing duration percentiles
-  - Compliance check success rates
-  - Error rates and failure patterns
-
-- **Comprehensive Tracing**:
-  - Request validation and enrichment spans
-  - Database operations (DynamoDB, S3)
-  - External service calls (SES, SNS, SSM)
-  - Business logic spans with meaningful attributes
-
-- **Structured Logging**:
-  - Trace correlation across all services
-  - Business context in every log entry
-  - Error tracking with stack traces
-  - Performance metrics and timing data
-
-### 🚀 Production-Ready Patterns
-
-- **Error Handling**: Realistic failure rates and retry logic
-- **Circuit Breakers**: Service degradation patterns
-- **Load Balancing**: Distributed request handling
-- **Security**: Input validation, sanitization, compliance checks
-- **Monitoring**: Health checks, dependency monitoring
-
-## 🛠️ Components
-
-### 1. Enhanced ECS Fargate API (`onboarding-api/`)
-
-**Key Features**:
-- **Flask API** with comprehensive business logic
-- **OpenTelemetry Auto-instrumentation** for HTTP, AWS SDK, and custom spans
-- **Business Metrics** for success rates, processing times, customer types
-- **Structured Logging** with trace correlation
-- **Error Simulation** for realistic failure scenarios
-
-**Endpoints**:
-- `POST /onboard` - Complete customer onboarding workflow
-- `GET /health` - Health check with service status
-- `GET /customers/{id}` - Customer lookup for testing
-
-### 2. Enhanced Lambda Processing (`onboarding-lambda/`)
-
-**Key Features**:
-- **Container Image** deployment with embedded OpenTelemetry
-- **Multi-step Processing**: Compliance, audit, storage, notifications
-- **AWS Service Integration**: DynamoDB, S3, SES, SSM
-- **Business Logic Spans** for each processing step
-- **Comprehensive Error Handling** with proper observability
-
-**Processing Steps**:
-1. Customer data validation and enrichment
-2. Compliance and security checks (KYC, AML, sanctions)
-3. Audit trail creation
-4. Document and data storage (S3)
-5. Customer status updates (DynamoDB)
-6. Internal team notifications (SES)
-7. Follow-up workflow triggering
-
-### 3. Production OpenTelemetry Collector
-
-**Configuration**:
-- **Span Metrics Generation** for service maps and APM
-- **Batch Processing** for optimal performance
-- **Resource Attribution** for proper service identification
-- **Memory Management** to prevent OOM issues
-- **Health Monitoring** and metrics exposure
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-1. **AWS CLI** configured with appropriate permissions
-2. **Docker** for building container images
-3. **Jenkins** for automated deployment (optional)
-4. **Coralogix Account** with API key
-
-### 1. Clone and Setup
-
-```bash
-git clone <repository-url>
-cd otel-integration/customer-onboarding-demo
-
-# Set your Coralogix API key
-export CORALOGIX_PRIVATE_KEY="your-coralogix-api-key"
-```
-
-### 2. Local Development
-
-```bash
-# Start local OpenTelemetry Collector
-docker run -p 4317:4317 -p 4318:4318 \
-  -v $(pwd)/otel/production-collector.yaml:/etc/otelcol/config.yaml \
-  otel/opentelemetry-collector-contrib:latest
-
-# Install API dependencies
-cd onboarding-api
-pip install -r requirements.txt
-
-# Run with auto-instrumentation
-export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
-export OTEL_EXPORTER_OTLP_PROTOCOL=grpc
-export OTEL_LOGS_EXPORTER=otlp
-export OTEL_RESOURCE_ATTRIBUTES="service.namespace=customer-onboarding,service.name=onboarding-api,service.version=2.0.0,deployment.environment=dev"
-
-opentelemetry-instrument --traces_exporter otlp --metrics_exporter otlp --logs_exporter otlp python app.py
-```
-
-### 3. Test the Enhanced API
-
-```bash
-# Test comprehensive onboarding workflow
-curl -X POST http://localhost:8000/onboard \
-  -H "Content-Type: application/json" \
-  -d '{
-    "customer_id": "demo-customer-001",
-    "email": "demo@example.com",
-    "type": "premium",
-    "company_name": "Demo Corp"
-  }'
-
-# Run comprehensive test suite
-python test-enhanced-onboarding.py \
-  --api-url http://localhost:8000 \
-  --test-type demo
-
-# Generate continuous traffic
-python continuous-traffic.py \
-  --api-url http://localhost:8000 \
-  --pattern business_hours \
-  --duration 3600
-```
-
-## 🎭 Demo Scenarios
-
-### 1. Business Demo Suite
-
-```bash
-python test-enhanced-onboarding.py --api-url http://your-api:8000 --test-type demo
-```
-
-**Demonstrates**:
-- Different customer types (standard, premium, enterprise)
-- Validation error handling
-- Success and failure scenarios
-- Concurrent request processing
-
-### 2. Load Testing
-
-```bash
-python test-enhanced-onboarding.py --api-url http://your-api:8000 --test-type load --requests 100
-```
-
-**Shows**:
-- System performance under load
-- Error rate patterns
-- Resource utilization
-- Service degradation handling
-
-### 3. Continuous Traffic Generation
-
-```bash
-python continuous-traffic.py --api-url http://your-api:8000 --pattern business_hours --duration 7200
-```
-
-**Simulates**:
-- Realistic business hour patterns
-- Customer type distributions
-- Seasonal variations
-- Sustained load patterns
-
-## 🚀 AWS Deployment
-
-### Automated Jenkins Deployment
-
-```bash
-# Configure Jenkins pipeline with parameters:
-# - OTEL_AUTOINSTRUMENT: true
-# - DEPLOY_PRODUCTION: false (for staging)
-# - AWS_REGION: us-west-2
-# - ECR repositories and Coralogix secret ID
-
-# Run the enhanced Jenkins pipeline
-# The pipeline will:
-# 1. Build and scan container images
-# 2. Deploy to ECS Fargate and Lambda
-# 3. Run post-deployment validation
-# 4. Generate telemetry test data
-```
-
-### Manual Deployment
-
-```bash
-# Build and push images
-./build-production.sh
-
-# Deploy ECS service
-aws ecs register-task-definition --cli-input-json file://ecs/taskdef.fargate.json
-aws ecs update-service --cluster cal-onboarding-cluster --service cal-onboarding-api --task-definition cal-onboarding-api-demo
-
-# Deploy Lambda function
-aws lambda update-function-code --function-name cal-onboarding-lambda --image-uri your-ecr-repo/cal-onboarding-lambda:latest
-```
-
-## 📊 Coralogix Integration
-
-### Service Maps
-
-The enhanced setup creates comprehensive service maps showing:
-- **ECS API** → **Lambda Processing** → **AWS Services**
-- **Request flow** with latency and error rates
-- **Dependency health** and performance metrics
-
-### Business Dashboards
-
-**Executive View**:
-- Customer onboarding success rates
-- Processing time trends by customer type
-- Revenue impact metrics
-- Service availability SLAs
-
-**Operations View**:
-- Request rates and latency percentiles
-- Error rates by service and endpoint
-- Resource utilization and scaling metrics
-- Alert status and incident tracking
-
-### Custom Metrics
-
-```promql
-# Onboarding Success Rate
-sum(rate(onboarding_success_total[5m])) / sum(rate(onboarding_requests_total[5m]))
-
-# Processing Duration by Customer Type
-histogram_quantile(0.95, rate(onboarding_duration_seconds_bucket[5m]))
-
-# Lambda Processing Success Rate
-sum(rate(lambda_processing_success_total[5m])) / sum(rate(lambda_processing_requests_total[5m]))
-```
-
-### Alerting Rules
-
-**Critical Business Alerts**:
-- Onboarding failure rate > 10%
-- Processing time P95 > 30 seconds
-- Compliance check failures
-- Service unavailability
-
-**Technical Alerts**:
-- HTTP 5xx error rate > 5%
-- Lambda cold start rate > 20%
-- Database connection failures
-- OpenTelemetry data gaps
-
-## 📚 Best Practices Demonstrated
-
-### 1. OpenTelemetry Implementation
-- **Semantic Conventions**: Proper attribute naming and values
-- **Span Hierarchies**: Logical parent-child relationships
-- **Error Handling**: Proper span status and error attributes
-- **Resource Attribution**: Service identification and metadata
-
-### 2. Observability Patterns
-- **Golden Signals**: Latency, traffic, errors, saturation
-- **Business Metrics**: KPIs that matter to stakeholders
-- **Trace Correlation**: Logs and traces properly linked
-- **Service Health**: Comprehensive health checks and monitoring
-
-### 3. Production Readiness
-- **Error Rates**: Realistic failure scenarios and handling
-- **Load Patterns**: Business hour simulation and scaling
-- **Security**: Input validation and compliance checks
-- **Performance**: Optimized batch processing and resource usage
-
-## 🔍 Troubleshooting
-
-### Common Issues
-
-1. **Missing Traces**: Check OTLP endpoint configuration and collector health
-2. **High Latency**: Review batch processor settings and resource allocation
-3. **Missing Service Maps**: Verify span attributes and service relationships
-4. **Data Gaps**: Check collector connectivity and Coralogix ingestion
-
-### Debug Tools
-
-```bash
-# Check collector health
-curl http://localhost:13133/
-
-# View collector metrics
-curl http://localhost:8888/metrics
-
-# Test OTLP endpoint
-curl -X POST http://localhost:4318/v1/traces -H "Content-Type: application/json" -d '{}'
-
-# Validate service endpoints
-curl http://your-api:8000/health
-```
-
-## 📞 Support Resources
-
-- **[Coralogix Best Practices Guide](./CORALOGIX-BEST-PRACTICES.md)** - Comprehensive configuration and monitoring guide
-- **[OpenTelemetry Documentation](https://opentelemetry.io/docs/)** - Official OTel documentation
-- **[AWS ADOT Documentation](https://aws-otel.github.io/docs/)** - AWS Distro for OpenTelemetry
-- **[Coralogix Documentation](https://coralogix.com/docs/)** - Platform-specific guides
-
-## 🎯 Success Metrics
-
-After deploying this enhanced setup, you should observe:
-
-1. **Complete Service Maps**: All services and dependencies visible with proper relationships
-2. **Business Dashboards**: KPIs and business metrics trending accurately
-3. **Effective Alerting**: Proactive issue detection and notification
-4. **Trace Correlation**: Logs and traces properly correlated across services
-5. **Performance Insights**: Bottlenecks and optimization opportunities identified
-
-## 🏆 Customer Demo Value
-
-This enhanced setup demonstrates:
-
-- **Production-Ready Patterns**: Real-world observability implementation
-- **Business Value**: Metrics that matter to stakeholders and executives
-- **Scalability**: Patterns that work from startup to enterprise scale
-- **Best Practices**: Industry-standard approaches to observability
-- **ROI Demonstration**: Clear value proposition for observability investment
+# Customer Onboarding Demo - OpenTelemetry Best Practices
+
+## 🎯 **Overview**
+
+This demo showcases **production-ready OpenTelemetry instrumentation** for a distributed serverless application using:
+- **ECS Fargate** (Python Flask API)
+- **AWS SQS** (Message Queue)
+- **AWS Lambda** (Containerized Python Function)
+- **Coralogix APM** (Observability Platform)
+
+### **Key Features**
+✅ **End-to-End Distributed Tracing** with W3C TraceContext propagation  
+✅ **Span Metrics** for APM RED metrics (Rate, Error, Duration)  
+✅ **Zero Code Changes** for ECS (auto-instrumentation)  
+✅ **Pure OpenTelemetry SDK** for Lambda (container images)  
+✅ **Production-Ready** with proper error handling and flushing  
 
 ---
 
-*This enhanced customer onboarding service showcases comprehensive observability patterns for modern microservices architectures, providing a realistic foundation for customer demonstrations and proof-of-concept implementations.*
+## 📁 **Repository Structure**
+
+```
+customer-onboarding-demo/
+├── onboarding-api/           # ECS Fargate Flask application
+│   ├── app.py                # Main application with OTel auto-instrumentation
+│   ├── Dockerfile            # ECS container image
+│   └── requirements.txt      # Python dependencies
+│
+├── onboarding-lambda/        # AWS Lambda function (container image)
+│   ├── app.py                # Lambda handler with manual OTel SDK setup
+│   ├── Dockerfile            # Lambda container image
+│   └── requirements.txt      # Python dependencies (includes OTLP gRPC exporter)
+│
+├── otel/                     # OpenTelemetry Collector configurations
+│   ├── coralogix-collector.yaml   # Collector with spanmetrics connector
+│   └── Dockerfile            # Collector container image
+│
+├── infrastructure/           # AWS infrastructure setup
+│   └── taskdef.json          # ECS task definition template
+│
+├── generate-sustained-traffic.sh  # Traffic generation script
+└── README.md                 # This file
+```
+
+---
+
+## 🚀 **Quick Start**
+
+### **Prerequisites**
+- AWS Account with ECS, Lambda, SQS, and ECR access
+- Docker installed locally
+- AWS CLI configured with appropriate credentials
+- Coralogix account with Send-Your-Data API key
+
+### **1. Deploy ECS Fargate Service**
+
+```bash
+# Build and push ECS application
+docker build --platform linux/amd64 -t <ECR_REPO>/cal-onboarding-api:latest -f onboarding-api/Dockerfile .
+docker push <ECR_REPO>/cal-onboarding-api:latest
+
+# Build and push OpenTelemetry Collector
+docker build --platform linux/amd64 -t <ECR_REPO>/cal-otel-collector:latest -f otel/Dockerfile .
+docker push <ECR_REPO>/cal-otel-collector:latest
+
+# Register ECS task definition and create service
+# See infrastructure/taskdef.json for configuration
+aws ecs register-task-definition --cli-input-json file://infrastructure/taskdef.json
+aws ecs create-service --cluster <CLUSTER> --service-name onboarding-api --task-definition cal-onboarding-api-demo
+```
+
+### **2. Deploy Lambda Function**
+
+```bash
+# Build and push Lambda image (single-arch for AWS Lambda)
+cd customer-onboarding-demo
+DOCKER_BUILDKIT=0 docker build -t <ECR_REPO>/cal-onboarding-lambda:latest -f onboarding-lambda/Dockerfile .
+docker push <ECR_REPO>/cal-onboarding-lambda:latest
+
+# Create or update Lambda function
+aws lambda create-function \
+  --function-name cal-onboarding-lambda \
+  --package-type Image \
+  --code ImageUri=<ECR_REPO>/cal-onboarding-lambda:latest \
+  --role arn:aws:iam::<ACCOUNT_ID>:role/lambda-execution-role \
+  --architecture arm64 \
+  --timeout 15 \
+  --memory-size 512
+```
+
+### **3. Configure Environment Variables**
+
+#### **ECS Task Definition**
+```json
+{
+  "environment": [
+    {"name": "OTEL_TRACES_EXPORTER", "value": "otlp"},
+    {"name": "OTEL_EXPORTER_OTLP_PROTOCOL", "value": "grpc"},
+    {"name": "OTEL_EXPORTER_OTLP_ENDPOINT", "value": "http://127.0.0.1:4317"},
+    {"name": "OTEL_PROPAGATORS", "value": "tracecontext,baggage"},
+    {"name": "OTEL_TRACES_SAMPLER", "value": "parentbased_always_on"},
+    {"name": "OTEL_RESOURCE_ATTRIBUTES", "value": "service.name=onboarding-api,service.namespace=onboarding,cx.application.name=onboarding,cx.subsystem.name=api"}
+  ]
+}
+```
+
+#### **Lambda Function**
+```bash
+aws lambda update-function-configuration \
+  --function-name cal-onboarding-lambda \
+  --environment "Variables={
+    SERVICE_NAME=onboarding-lambda,
+    SERVICE_NAMESPACE=onboarding,
+    CX_APPLICATION=onboarding,
+    CX_SUBSYSTEM=lambda,
+    OTEL_EXPORTER_OTLP_ENDPOINT=ingress.us2.coralogix.com:443,
+    OTEL_EXPORTER_OTLP_HEADERS=authorization=Bearer <YOUR_API_KEY>
+  }"
+```
+
+### **4. Set Up SQS Event Source Mapping**
+
+```bash
+aws lambda create-event-source-mapping \
+  --function-name cal-onboarding-lambda \
+  --event-source-arn arn:aws:sqs:<REGION>:<ACCOUNT_ID>:cal-onboarding-queue \
+  --batch-size 5
+```
+
+---
+
+## 🔍 **OpenTelemetry Implementation Details**
+
+### **ECS Fargate (Producer)**
+
+**Auto-Instrumentation** via `opentelemetry-instrument` CLI:
+- Automatically instruments Flask, boto3, requests
+- Exports to sidecar collector via OTLP/gRPC
+- **W3C TraceContext injection** into SQS message attributes
+
+**Key Code Pattern** (`onboarding-api/app.py`):
+```python
+from opentelemetry import propagate, trace
+from opentelemetry.trace import SpanKind
+
+# Inside queue_for_processing function
+with tracer.start_as_current_span("sqs.send", kind=SpanKind.PRODUCER) as producer_span:
+    producer_span.set_attribute("messaging.system", "aws.sqs")
+    producer_span.set_attribute("messaging.destination.name", "cal-onboarding-queue")
+    
+    # Inject W3C context
+    carrier = {}
+    propagate.inject(carrier)
+    
+    # Map to SQS MessageAttributes
+    msg_attrs = {
+        k: {"DataType": "String", "StringValue": v}
+        for k, v in carrier.items()
+        if k in ("traceparent", "tracestate", "baggage")
+    }
+    
+    sqs.send_message(
+        QueueUrl=queue_url,
+        MessageBody=json.dumps(payload),
+        MessageAttributes=msg_attrs
+    )
+```
+
+### **AWS Lambda (Consumer)**
+
+**Manual SDK Setup** (required for container images):
+- Pure OpenTelemetry SDK initialization at module load
+- **W3C TraceContext extraction** from SQS message attributes
+- Per-record CONSUMER spans (continues parent trace)
+- Batch span with links for analytics
+- Explicit `force_flush()` before function return
+
+**Key Code Pattern** (`onboarding-lambda/app.py`):
+```python
+from opentelemetry import trace, propagate
+from opentelemetry.trace import SpanKind
+
+def _flatten_attrs(msg_attrs):
+    """Convert SQS messageAttributes to flat carrier dict"""
+    out = {}
+    if msg_attrs:
+        for k, v in msg_attrs.items():
+            sval = v.get("stringValue") or v.get("StringValue")
+            if isinstance(sval, str):
+                out[k.lower()] = sval
+    return out
+
+def _extract_parent(rec):
+    """Extract parent context from SQS record"""
+    h = _flatten_attrs(rec.get("messageAttributes") or {})
+    if "traceparent" in h:
+        return propagate.extract(h)
+    return None
+
+def handler(event, context):
+    records = event.get("Records", [])
+    
+    # Per-record processing with parent context
+    for rec in records:
+        parent_ctx = _extract_parent(rec)
+        
+        with tracer.start_as_current_span(
+            "sqs.process",
+            context=parent_ctx,  # Continue trace from ECS
+            kind=SpanKind.CONSUMER
+        ) as span:
+            span.set_attribute("messaging.system", "aws.sqs")
+            span.set_attribute("messaging.destination.name", "cal-onboarding-queue")
+            # Process message...
+    
+    # Force flush before return (critical for Lambda!)
+    provider.force_flush(timeout_millis=5000)
+```
+
+### **OpenTelemetry Collector (Sidecar)**
+
+**Span Metrics Connector** for APM dashboard:
+- Transforms traces into RED metrics
+- Exports both traces and metrics to Coralogix
+- Enables APM Services Dashboard without sampling
+
+**Configuration** (`otel/coralogix-collector.yaml`):
+```yaml
+connectors:
+  spanmetrics:
+    histogram:
+      explicit:
+        buckets: [2ms, 4ms, 6ms, 8ms, 10ms, 50ms, 100ms, 200ms, 400ms, 800ms, 1s, 1400ms, 2s, 5s, 10s, 15s]
+    dimensions:
+      - name: http.method
+      - name: http.status_code
+    metrics_flush_interval: 15s
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [spanmetrics, otlp/traces]
+    
+    metrics:
+      receivers: [spanmetrics]
+      processors: [batch]
+      exporters: [otlp/metrics]
+```
+
+---
+
+## 📊 **Verify in Coralogix**
+
+### **1. Trace Explorer**
+- Filter: `service.name:("onboarding-api" OR "onboarding-lambda")`
+- Verify complete E2E traces: `POST /telemetry/smoke` → `sqs.send` → `sqs.process`
+
+### **2. Service Map**
+- Should show: `onboarding-api` → `cal-onboarding-queue` → `onboarding-lambda`
+
+### **3. APM Services Dashboard**
+- View RED metrics (Rate, Error, Duration) for both services
+- Powered by Span Metrics (no sampling needed!)
+
+### **4. Serverless Catalog**
+- **Requires CloudWatch Metric Streams** with `AWS/Lambda` namespace
+- Shows invocation count, duration, errors, throttles
+- Update metric stream:
+  ```bash
+  aws cloudwatch put-metric-stream \
+    --name <STREAM_NAME> \
+    --include-filters Namespace=AWS/Lambda \
+    --firehose-arn <FIREHOSE_ARN> \
+    --role-arn <ROLE_ARN> \
+    --output-format opentelemetry0.7
+  ```
+
+---
+
+## 🧪 **Testing**
+
+### **Generate Traffic**
+```bash
+# Run sustained traffic for dashboard population
+./generate-sustained-traffic.sh <ECS_PUBLIC_IP> 600 1
+# Arguments: IP, duration (seconds), interval (seconds)
+```
+
+### **Manual Test**
+```bash
+# Test ECS API
+curl -X POST http://<ECS_IP>:8000/telemetry/smoke \
+  -H 'Content-Type: application/json' \
+  -d '{"customer_id":"TEST-001"}'
+
+# Check ECS logs for trace ID
+aws logs tail /ecs/cal-onboarding-api --since 1m | grep "PRODUCER trace_id"
+
+# Check Lambda logs
+aws logs tail /aws/lambda/cal-onboarding-lambda --since 1m
+```
+
+---
+
+## 🎓 **Best Practices Demonstrated**
+
+### **1. Context Propagation**
+- ✅ W3C TraceContext for vendor-agnostic tracing
+- ✅ Inject *inside* producer span (not before)
+- ✅ Extract and pass `context=parent_ctx` to consumer span
+- ✅ Lowercase keys for SQS message attributes
+
+### **2. Span Kinds**
+- ✅ `PRODUCER` for SQS send operations
+- ✅ `CONSUMER` for SQS receive/process operations
+- ✅ `SERVER` for HTTP endpoints
+
+### **3. Lambda-Specific**
+- ✅ Initialize SDK at module load (cold start)
+- ✅ Explicit `force_flush()` before return
+- ✅ Handle SQS batch events with per-record spans
+- ✅ Use container images when layers aren't available
+
+### **4. Resource Attributes**
+- ✅ `service.name`, `service.namespace` for service identification
+- ✅ `cx.application.name`, `cx.subsystem.name` for Coralogix
+- ✅ `cloud.*`, `faas.*` attributes for serverless context
+- ✅ `messaging.*` attributes for queue operations
+
+### **5. Span Metrics**
+- ✅ Use `spanmetrics` connector for 100% APM coverage
+- ✅ No sampling needed (metrics from all spans)
+- ✅ Configure histogram buckets for latency percentiles
+
+---
+
+## 🐛 **Troubleshooting**
+
+### **No traces in Coralogix**
+1. Check collector logs: `aws logs tail /ecs/cal-otel-collector`
+2. Verify API key: `authorization: Bearer <SEND_YOUR_DATA_KEY>`
+3. Check Lambda flush: Look for "Flush complete" in logs
+
+### **Traces not linked (separate traces)**
+1. Verify `traceparent` in SQS: `aws sqs receive-message --message-attribute-names All`
+2. Check Lambda extraction: Look for "extracted traceparent" logs
+3. Ensure `OTEL_PROPAGATORS=tracecontext,baggage` on both sides
+
+### **No Serverless Catalog data**
+1. Verify CloudWatch Metric Stream includes `AWS/Lambda`
+2. Check metric stream is `running` state
+3. Wait 5-10 minutes for metrics to propagate
+
+### **Lambda not processing SQS**
+1. Check event source mapping: `aws lambda list-event-source-mappings`
+2. Verify IAM permissions for Lambda execution role
+3. Check SQS queue visibility timeout
+
+---
+
+## 📚 **Resources**
+
+- [OpenTelemetry Documentation](https://opentelemetry.io/docs/)
+- [Coralogix OpenTelemetry Integration](https://coralogix.com/docs/opentelemetry/)
+- [AWS Lambda Container Images](https://docs.aws.amazon.com/lambda/latest/dg/images-create.html)
+- [W3C Trace Context Specification](https://www.w3.org/TR/trace-context/)
+
+---
+
+## 🤝 **Contributing**
+
+This is a **reference implementation** for customer demonstrations. To adapt for your use case:
+
+1. Update service names and endpoints
+2. Modify business logic in `onboarding-api/app.py`
+3. Adjust collector configuration in `otel/coralogix-collector.yaml`
+4. Configure your own Coralogix API keys and endpoints
+
+---
+
+## 📝 **License**
+
+This demo is provided as-is for educational and demonstration purposes.
+
+---
+
+**Built with ❤️ using OpenTelemetry best practices**

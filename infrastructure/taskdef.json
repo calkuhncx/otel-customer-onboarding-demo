@@ -1,0 +1,54 @@
+{
+  "family": "cal-onboarding-api-demo",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/ecsTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "onboarding-api",
+      "image": "<ECR_REPO>/cal-onboarding-api:latest",
+      "essential": true,
+      "portMappings": [{"containerPort": 8000, "protocol": "tcp"}],
+      "environment": [
+        {"name": "SERVICE_NAME", "value": "onboarding-api"},
+        {"name": "SERVICE_NAMESPACE", "value": "onboarding"},
+        {"name": "OTEL_TRACES_EXPORTER", "value": "otlp"},
+        {"name": "OTEL_EXPORTER_OTLP_PROTOCOL", "value": "grpc"},
+        {"name": "OTEL_EXPORTER_OTLP_ENDPOINT", "value": "http://127.0.0.1:4317"},
+        {"name": "OTEL_PROPAGATORS", "value": "tracecontext,baggage"},
+        {"name": "OTEL_TRACES_SAMPLER", "value": "parentbased_always_on"},
+        {"name": "OTEL_RESOURCE_ATTRIBUTES", "value": "service.name=onboarding-api,service.namespace=onboarding,cx.application.name=onboarding,cx.subsystem.name=api"},
+        {"name": "SQS_QUEUE_URL", "value": "https://sqs.<REGION>.amazonaws.com/<ACCOUNT_ID>/cal-onboarding-queue"}
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/cal-onboarding-api",
+          "awslogs-region": "<REGION>",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    },
+    {
+      "name": "otel-collector",
+      "image": "<ECR_REPO>/cal-otel-collector:latest",
+      "essential": false,
+      "portMappings": [{"containerPort": 4317, "protocol": "tcp"}],
+      "environment": [
+        {"name": "CORALOGIX_ENDPOINT", "value": "ingress.us2.coralogix.com:443"},
+        {"name": "CORALOGIX_AUTH", "value": "authorization=Bearer <YOUR_API_KEY>"}
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/cal-otel-collector",
+          "awslogs-region": "<REGION>",
+          "awslogs-stream-prefix": "otel-collector"
+        }
+      }
+    }
+  ]
+}

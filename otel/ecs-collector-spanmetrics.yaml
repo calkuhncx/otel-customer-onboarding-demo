@@ -1,0 +1,58 @@
+# Production-ready OpenTelemetry Collector configuration for ECS Fargate sidecar
+# With SpanMetrics for APM golden signals
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch: {}
+  
+  # Generate span metrics for APM (golden signals)
+  spanmetrics:
+    metrics_exporter: otlp/metrics    # send span metrics directly via gRPC
+    dimensions:
+      - name: service.name
+      - name: span.kind
+      - name: status_code
+      - name: http.method
+      - name: http.route
+      - name: messaging.system
+      - name: messaging.destination.name
+    histogram:
+      explicit:
+        buckets: [1ms, 2ms, 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s, 2s, 5s]
+
+exporters:
+  # TRACES → Coralogix (gRPC)
+  otlp/traces:
+    endpoint: ingress.us2.coralogix.com:443
+    headers:
+      authorization: "Bearer ${CORALOGIX_API_KEY}"
+  
+  # METRICS (spanmetrics) → Coralogix (gRPC)
+  otlp/metrics:
+    endpoint: ingress.us2.coralogix.com:443
+    headers:
+      authorization: "Bearer ${CORALOGIX_API_KEY}"
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+  
+  telemetry:
+    logs:
+      level: "debug"
+      
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [spanmetrics, batch]
+      exporters: [otlp/traces]
