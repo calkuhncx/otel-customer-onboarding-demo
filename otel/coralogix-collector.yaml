@@ -29,14 +29,14 @@ exporters:
     tls:
       insecure: false
     headers:
-      authorization: Bearer ${CORALOGIX_API_KEY}
+      ${CORALOGIX_AUTH}
   
   otlp/metrics:
     endpoint: ${CORALOGIX_ENDPOINT}
     tls:
       insecure: false
     headers:
-      authorization: Bearer ${CORALOGIX_API_KEY}
+      ${CORALOGIX_AUTH}
 
 service:
   pipelines:

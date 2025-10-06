@@ -1,0 +1,27 @@
+# Simple OpenTelemetry Collector - Traces Only
+# Forwards traces directly to Coralogix
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+processors:
+  batch: {}
+
+exporters:
+  otlp:
+    endpoint: ${CORALOGIX_ENDPOINT}
+    tls:
+      insecure: false
+    headers:
+      authorization: Bearer ${CORALOGIX_API_KEY}
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp]
+
