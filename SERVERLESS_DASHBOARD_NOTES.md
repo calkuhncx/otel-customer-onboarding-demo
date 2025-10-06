@@ -30,11 +30,19 @@ The Coralogix Serverless Dashboard requires:
    - Must include `AWS/Lambda` namespace
    - Sends Lambda platform metrics to Coralogix
 
-### Why We Don't Use the Lambda Layer
-Our Lambda is deployed as a **container image**, not a ZIP package. The Coralogix Lambda Layer:
-- Only works with ZIP-deployed functions
-- Conflicts with our pure OpenTelemetry SDK approach
-- Would require restructuring the deployment model
+### Why We Don't Use the Coralogix Lambda Extension
+Our Lambda is deployed as a **container image**, not a ZIP package. 
+
+**Important Clarification**:
+- **Lambda Layers**: Only available for ZIP-deployed Lambda functions
+- **Container Image Lambdas**: Cannot use Lambda Layers (different deployment model)
+- **Lambda Extensions**: CAN be included in container images, but...
+
+The Coralogix Lambda Extension:
+- Is designed for auto-instrumentation
+- Would conflict with our pure OpenTelemetry SDK approach
+- Duplicates the instrumentation we've already implemented
+- Could be manually added to the Dockerfile, but provides no additional value
 
 ### What Works (Our Current Implementation)
 ✅ **OpenTelemetry traces with perfect E2E visibility**
