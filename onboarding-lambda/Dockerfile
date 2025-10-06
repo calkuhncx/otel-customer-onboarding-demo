@@ -12,10 +12,8 @@ COPY onboarding-lambda/requirements.txt ${LAMBDA_TASK_ROOT}/requirements.txt
 RUN pip install --no-cache-dir -r ${LAMBDA_TASK_ROOT}/requirements.txt --target "${LAMBDA_TASK_ROOT}"
 
 COPY onboarding-lambda/app.py ${LAMBDA_TASK_ROOT}/
-COPY onboarding-lambda/otel-collector-config.yaml /var/task/otel-collector-config.yaml
 
-# Configure the Lambda execution wrapper for Coralogix
-ENV AWS_LAMBDA_EXEC_WRAPPER=/opt/otel-handler
+# No wrapper needed - using pure OTel SDK in code
 
 # Coralogix environment variables (will be set at runtime via Lambda config)
 # CX_DOMAIN=us2.coralogix.com
