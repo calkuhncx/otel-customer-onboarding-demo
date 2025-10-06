@@ -116,7 +116,7 @@ def handler(event, context):
         "aws.lambda",
         kind=trace.SpanKind.SERVER,
         attributes={
-            "faas.execution": context.request_id if context else "local",
+            "faas.execution": context.aws_request_id if context else "local",
             "faas.trigger": "pubsub",
             "faas.invoked_name": os.getenv("AWS_LAMBDA_FUNCTION_NAME", "cal-onboarding-lambda-arm64"),
             "faas.invoked_region": os.getenv("AWS_REGION", "us-west-2"),
