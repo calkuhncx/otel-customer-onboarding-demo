@@ -20,6 +20,10 @@ connectors:
       - name: http.method
         default: GET
       - name: http.status_code
+      - name: faas.name
+      - name: faas.trigger
+      - name: cloud.region
+      - name: cloud.platform
     # Emit metrics for Coralogix APM
     metrics_flush_interval: 15s
 
@@ -46,6 +50,6 @@ service:
       exporters: [spanmetrics, otlp/traces]
     
     metrics:
-      receivers: [spanmetrics]
+      receivers: [otlp, spanmetrics]  # Accept both app metrics and span-derived metrics
       processors: [batch]
       exporters: [otlp/metrics]

@@ -85,24 +85,48 @@ def _carrier_from_sqs_attributes(attrs: Dict[str, Any]) -> Dict[str, str]:
             carrier[key] = sv.strip()
     return carrier
 
+# Module-level cold start flag
+_COLD_START = True
+
 def handler(event, context):
     if not os.getenv("SKIP_OTEL_INIT"):
-        # Create a Lambda invocation span for serverless dashboard
-        with tracer.start_as_current_span("lambda.invoke", kind=SpanKind.SERVER) as lambda_span:
-            # Add Lambda-specific attributes for serverless dashboard
-            lambda_span.set_attribute("faas.execution", getattr(context, "aws_request_id", "n/a"))
-            lambda_span.set_attribute("faas.id", getattr(context, "invoked_function_arn", ""))
-            lambda_span.set_attribute("cloud.account.id", getattr(context, "invoked_function_arn", "").split(":")[4] if ":" in getattr(context, "invoked_function_arn", "") else "")
-            
-            log.info("🚀 Handler called - Request ID: %s", getattr(context, "aws_request_id", "n/a"))
-            
-            records: List[Dict[str, Any]] = (event.get("Records") or []) if isinstance(event, dict) else []
+        global _COLD_START
+        
+        log.info("🚀 Handler called - Request ID: %s", getattr(context, "aws_request_id", "n/a"))
+        
+        records: List[Dict[str, Any]] = (event.get("Records") or []) if isinstance(event, dict) else []
+        
+        # Extract parent context from first SQS record (if available)
+        parent_ctx = None
+        if records:
+            first_carrier = _carrier_from_sqs_attributes(records[0].get("messageAttributes"))
+            if first_carrier:
+                parent_ctx = propagate.extract(first_carrier)
+                log.info("📥 Extracted parent context from first SQS record")
+        
+        # Build FaaS attributes for serverless dashboard
+        faas_attrs = {
+            "faas.name": os.getenv("AWS_LAMBDA_FUNCTION_NAME", "cal-onboarding-lambda-arm64"),
+            "faas.version": os.getenv("AWS_LAMBDA_FUNCTION_VERSION", "$LATEST"),
+            "faas.runtime": "python3.11",
+            "faas.architecture": "arm64",
+            "faas.trigger": "pubsub",  # SQS trigger
+            "faas.coldstart": _COLD_START,
+            "faas.execution": getattr(context, "aws_request_id", "n/a"),
+            "cloud.provider": "aws",
+            "cloud.platform": "aws_lambda",
+            "cloud.region": os.getenv("AWS_REGION", "us-west-2"),
+            "cloud.account.id": getattr(context, "invoked_function_arn", "").split(":")[4] if ":" in getattr(context, "invoked_function_arn", "") else "",
+        }
+        _COLD_START = False  # Only true for first invocation
+        
+        # Top-level Lambda invocation SERVER span (required for serverless dashboard)
+        with tracer.start_as_current_span("lambda.invoke", context=parent_ctx, kind=SpanKind.SERVER, attributes=faas_attrs) as lambda_span:
             if not records:
-                with tracer.start_as_current_span("lambda.direct_invoke", kind=SpanKind.SERVER):
-                    log.info("🎯 Direct invocation trace_id=%s", 
-                            format(trace.get_current_span().get_span_context().trace_id, "032x"))
-                    trace.get_tracer_provider().force_flush(timeout_millis=4000)
-                    return {"ok": True, "source": "direct"}
+                log.info("🎯 Direct invocation trace_id=%s", 
+                        format(lambda_span.get_span_context().trace_id, "032x"))
+                trace.get_tracer_provider().force_flush(timeout_millis=4000)
+                return {"ok": True, "source": "direct"}
 
             # Collect parent SpanContexts for batch KPI span with links
             links: List[Link] = []
