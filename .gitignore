@@ -8,17 +8,22 @@ env/
 venv/
 ENV/
 build/
+develop-eggs/
 dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
 *.egg-info/
+.installed.cfg
+*.egg
 
-# AWS
-.aws/
-
-# Logs
-*.log
-/tmp/
-
-# IDE
+# IDEs
 .vscode/
 .idea/
 *.swp
@@ -29,6 +34,34 @@ dist/
 .DS_Store
 Thumbs.db
 
+# AWS
+.aws-sam/
+
+# Docker
+*.log
+
 # Temporary files
 *.tmp
+*.bak
+*.old
+.backup/
+
+# Environment variables (if you store them locally)
+.env
+.env.local
+*.secret
+
+# Test outputs
 /tmp/
+*.test
+
+# Logs
+logs/
+*.log
+
+# Coverage reports
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
